@@ -1,0 +1,53 @@
+Pig code
+demonit_tweets= LOAD '/user/training/sentiment_analysis/Tweets.csv' USING PigStorage(',');
+dump demonit_tweets
+
+data_extract= FPREACH demonit_tweets GENERATE $0 as id, $1 as text;
+dump data_extract
+
+word_dict= LOAD '/user/training/sentiment_analysis/AFINN.txt'
+USING PigStorage('\t')As(word:chararray,rating:int);
+dump word_dict
+data_tokens= FOREACH data_extract generate id, text, FLATTEN(TOKENIZE(text)) as words;
+describe data_tokens;
+sent_join = join data_tokens by words left outer,word_dict by word using 'replicated';
+describe sent_join;
+sent_extract= FOREACH sent_join generate data_tokens::id as id, data_tokens::text as text, word_dict::rating as rate;
+describe sent_extract;
+word_grouping=group sent_extract by(id,text);
+dump word_grouping
+avg_rating= FOREACH word_grouping generate group, AVG(sent_extract.rate) as tweet_rate
+dump avg_rating;
+final_tweets= filter avg_rating by tweet_rate>=-5;
+dump final_tweets;
+STORE final_tweets INTO '/user/training/sentiment_analysis/analyzed_tweets';
+
+
+
+HIVE code:
+CREATE EXTERNAL TABLE tweety (text STRING,tweet_rating DOUBLE) ROW FORMAT DELIMITED FIELDS TERMINATED BY ')' LOCATION '/user/training/sentiment_analysis/analyzed_tweets';
+INSERT OVERWRITE LOCAL DIRECTORY '/user/training/sentiment_analysis/analyzed_tweets'
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY '\t' 
+SELECT * FROM tweety;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE EXTERNAL TABLE tweety (text STRING,tweet_rating DOUBLE) ROW FORMAT DELIMITED FIELDS TERMINATED BY ','LOCATION '/user/training/sentiment_analysis/analyzed_tweets';
